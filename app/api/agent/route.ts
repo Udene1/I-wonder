@@ -35,6 +35,13 @@ export async function GET(req:Request){
       const r=await sql("UPDATE wonders SET status=COALESCE($2,status),updated_at=NOW() WHERE id=$1 RETURNING *",[p.wonder_id,p.status||null]);
       return NextResponse.json({ok:true,wonder:r[0]});
     }
+    if(op==="rabbit_holes"){
+      const target=await sql("SELECT id,question,status FROM wonders WHERE id=$1",[p.wonder_id]);
+      if(!target[0]) return NextResponse.json({ok:true,wonder:null,candidates:[]});
+      const entries=await sql("SELECT content,created_at FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at DESC LIMIT 12",[p.wonder_id]);
+      const candidates=await sql("SELECT w.id,w.question,w.status,w.created_at,w.updated_at,COALESCE((SELECT json_agg(e ORDER BY e.created_at DESC) FROM (SELECT content,created_at FROM wonder_entries WHERE wonder_id=w.id ORDER BY created_at DESC LIMIT 5) e),'[]'::json) AS entries FROM wonders w WHERE w.id<>$1 AND NOT EXISTS (SELECT 1 FROM wonder_links l WHERE (l.wonder_id=$1 AND l.related_id=w.id) OR (l.wonder_id=w.id AND l.related_id=$1)) ORDER BY w.updated_at DESC LIMIT $2",[p.wonder_id,Math.min(Number(p.limit)||12,30)]);
+      return NextResponse.json({ok:true,wonder:target[0],entries,candidates});
+    }
     if(op==="link"){
       const type=relationTypes.includes(p.relationship_type)?p.relationship_type:"related";
       const confidence=p.confidence===""||p.confidence==null?null:Number(p.confidence);
