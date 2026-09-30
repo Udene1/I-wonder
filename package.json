@@ -8,13 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@neondatabase/serverless": "latest",
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "zod": "^4.2.0",
-    "@modelcontextprotocol/server": "^2.0.0"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "latest",
