@@ -64,6 +64,18 @@ const handler = createMcpHandler(() => {
     return { content: [{ type: "text", text: JSON.stringify(rows[0] ?? null) }] };
   });
 
+  server.registerTool("find_rabbit_holes", {
+    description: "Prepare unlinked curiosities for semantic relationship reasoning. This tool does not create links and does not score by keywords; the calling AI can inspect the question and discovery history and decide whether a meaningful relationship exists.",
+    inputSchema: z.object({ wonder_id: z.string().uuid(), limit: z.number().int().min(1).max(30).optional() })
+  }, async ({ wonder_id, limit }) => {
+    await ensureSchema();
+    const target = await sql("SELECT id,question,status FROM wonders WHERE id=$1", [wonder_id]);
+    if (!target[0]) return { content: [{ type: "text", text: JSON.stringify({ wonder: null, candidates: [] }) }] };
+    const entries = await sql("SELECT content,created_at FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at DESC LIMIT 12", [wonder_id]);
+    const candidates = await sql("SELECT w.id,w.question,w.status,w.created_at,w.updated_at,COALESCE((SELECT json_agg(e ORDER BY e.created_at DESC) FROM (SELECT content,created_at FROM wonder_entries WHERE wonder_id=w.id ORDER BY created_at DESC LIMIT 5) e),'[]'::json) AS entries FROM wonders w WHERE w.id<>$1 AND NOT EXISTS (SELECT 1 FROM wonder_links l WHERE (l.wonder_id=$1 AND l.related_id=w.id) OR (l.wonder_id=w.id AND l.related_id=$1)) ORDER BY w.updated_at DESC LIMIT $2", [wonder_id, limit ?? 12]);
+    return { content: [{ type: "text", text: JSON.stringify({ wonder: target[0], entries, candidates }) }] };
+  });
+
   server.registerTool("link_wonders", {
     description: "Connect two curiosities with an explicit semantic relationship. Use a short reason when the relationship is known from the user's thinking or research; do not infer a relationship merely from shared words.",
     inputSchema: z.object({
