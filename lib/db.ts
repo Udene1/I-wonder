@@ -1,6 +1,10 @@
 import { neon } from "@neondatabase/serverless";
 
-export const sql = neon(process.env.DATABASE_URL!);
+const neonClient = neon(process.env.DATABASE_URL!);
+
+export function sql(query: string, params: unknown[] = []) {
+  return neonClient.query(query, params);
+}
 
 export async function ensureSchema() {
   await sql("CREATE EXTENSION IF NOT EXISTS pgcrypto");
