@@ -15,6 +15,6 @@ export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){
   await ensureSchema();
   const {id}=await params;
   const b=await req.json();
-  const r=await sql("UPDATE wonders SET status=COALESCE($2,status),updated_at=NOW() WHERE id=$1 RETURNING *",[id,b.status||null]);
+  const r=await sql("UPDATE wonders SET question=COALESCE(NULLIF($2,''),question),status=COALESCE($3,status),updated_at=NOW() WHERE id=$1 RETURNING *",[id,typeof b.question==="string"?b.question.trim():"",b.status||null]);
   return NextResponse.json({wonder:r[0]});
 }
