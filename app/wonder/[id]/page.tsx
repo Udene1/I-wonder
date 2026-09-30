@@ -2,10 +2,14 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {ArrowLeft,ArrowUpRight,Check,Compass,Leaf,Plus,RefreshCw,Sparkles,Unlink} from "lucide-react";
-type Entry={id:string;content:string;created_at:string};type Wonder={id:string;question:string;status:string;created_at:string;updated_at:string};type Related={id:string;question:string;status:string};
+
+type Entry={id:string;content:string;created_at:string};
+type Wonder={id:string;question:string;status:string;created_at:string;updated_at:string};
+type Related={id:string;question:string;status:string;relationship_type:string;reason:string|null;confidence:number|null;source:string};
 const statuses=["curious","investigating","learned","still_dont_know","forgotten"];
 const glyphs=["✦","◌","☾","⌁","◇"];
 function label(s:string){return s.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}
+
 export default function WonderPage({params}:{params:Promise<{id:string}>}){
  const[w,setW]=useState<Wonder|null>(null),[entries,setEntries]=useState<Entry[]>([]),[related,setRelated]=useState<Related[]>([]),[all,setAll]=useState<Wonder[]>([]),[selected,setSelected]=useState(""),[note,setNote]=useState(""),[busy,setBusy]=useState(false),[id,setId]=useState("");
  useEffect(()=>{params.then(p=>{setId(p.id);load(p.id);loadAll(p.id)})},[]);
@@ -26,7 +30,7 @@ export default function WonderPage({params}:{params:Promise<{id:string}>}){
    <div className="add-discovery"><textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Something you discovered, noticed, or want to remember…"/><button onClick={add} disabled={busy||!note.trim()}>{busy?<RefreshCw className="spin" size={16}/>:<Plus size={16}/>} {busy?"Saving":"Add to the thread"}</button></div>
   </section>
   <section className="rabbit"><div className="section-title"><div><small>FOLLOW THE THREAD</small><h2>Rabbit holes</h2></div><span>{related.length} nearby</span></div>
-   {related.length?<div className="related-grid">{related.map((r,i)=><div className="related-card" key={r.id}><Link href={"/wonder/"+r.id} className="related-link"><span>{glyphs[i%glyphs.length]}</span><div><small>{label(r.status)}</small><h3>{r.question}</h3></div><ArrowUpRight size={16}/></Link><button className="unlink" aria-label="Disconnect rabbit hole" onClick={()=>disconnect(r.id)} disabled={busy}><Unlink size={14}/></button></div>):<div className="rabbit-empty"><span>⌁</span><p>Related questions will gather here as your curiosity branches out.</p></div>}
+   {related.length?<div className="related-grid">{related.map((r,i)=><div className="related-card" key={r.id}><Link href={"/wonder/"+r.id} className="related-link"><span>{glyphs[i%glyphs.length]}</span><div><small>{label(r.relationship_type)} · {label(r.status)}</small><h3>{r.question}</h3>{r.reason&&<p className="relationship-reason">{r.reason}</p>}</div><ArrowUpRight size={16}/></Link><button className="unlink" aria-label="Disconnect rabbit hole" onClick={()=>disconnect(r.id)} disabled={busy}><Unlink size={14}/></button></div>):<div className="rabbit-empty"><span>⌁</span><p>Related questions will gather here as your curiosity branches out.</p></div>}
    {choices.length>0&&<div className="connect-row"><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Connect another question…</option>{choices.map(x=><option key={x.id} value={x.id}>{x.question}</option>)}</select><button onClick={connect} disabled={busy||!selected}><Plus size={15}/> Connect</button></div>}
   </section>
  </main>
