@@ -2,6 +2,8 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { sql, ensureSchema } from "@/lib/db";
 
+const relationTypes = ["related","follows_from","helps_explain","branch_of","contrasts_with"] as const;
+
 const handler = createMcpHandler(() => {
   const server = new McpServer({ name: "i-wonder", version: "0.1.0" });
 
@@ -30,7 +32,7 @@ const handler = createMcpHandler(() => {
     await ensureSchema();
     const w = await sql("SELECT * FROM wonders WHERE id=$1", [wonder_id]);
     const entries = await sql("SELECT * FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at", [wonder_id]);
-    const related = await sql("SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question", [wonder_id]);
+    const related = await sql("SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question", [wonder_id]);
     return { content: [{ type: "text", text: JSON.stringify({ wonder: w[0] ?? null, entries, related }) }] };
   });
 
@@ -63,12 +65,21 @@ const handler = createMcpHandler(() => {
   });
 
   server.registerTool("link_wonders", {
-    description: "Connect two curiosities as a rabbit-hole relationship.",
-    inputSchema: z.object({ wonder_id: z.string().uuid(), related_id: z.string().uuid() })
-  }, async ({ wonder_id, related_id }) => {
+    description: "Connect two curiosities with an explicit semantic relationship. Use a short reason when the relationship is known from the user's thinking or research; do not infer a relationship merely from shared words.",
+    inputSchema: z.object({
+      wonder_id: z.string().uuid(),
+      related_id: z.string().uuid(),
+      relationship_type: z.enum(relationTypes).optional(),
+      reason: z.string().max(500).optional(),
+      confidence: z.number().min(0).max(1).optional(),
+      source: z.enum(["manual","ai"]).optional()
+    })
+  }, async ({ wonder_id, related_id, relationship_type, reason, confidence, source }) => {
     await ensureSchema();
-    await sql("INSERT INTO wonder_links(wonder_id,related_id) VALUES($1,$2) ON CONFLICT DO NOTHING", [wonder_id, related_id]);
-    return { content: [{ type: "text", text: JSON.stringify({ linked: true, wonder_id, related_id }) }] };
+    const type = relationship_type ?? "related";
+    const origin = source ?? "manual";
+    await sql("INSERT INTO wonder_links(wonder_id,related_id,relationship_type,reason,confidence,source) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(wonder_id,related_id) DO UPDATE SET relationship_type=EXCLUDED.relationship_type,reason=EXCLUDED.reason,confidence=EXCLUDED.confidence,source=EXCLUDED.source", [wonder_id, related_id, type, reason ?? null, confidence ?? null, origin]);
+    return { content: [{ type: "text", text: JSON.stringify({ linked: true, wonder_id, related_id, relationship_type: type, reason: reason ?? null, confidence: confidence ?? null, source: origin }) }] };
   });
 
   server.registerTool("unlink_wonders", {
