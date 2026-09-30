@@ -1,4 +1,7 @@
 import {NextResponse} from "next/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import {sql,ensureSchema} from "@/lib/db";
 
 const relationTypes=["related","follows_from","helps_explain","branch_of","contrasts_with"] as const;
