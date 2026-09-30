@@ -1,0 +1,3 @@
+import { neon } from "@neondatabase/serverless";
+export const sql = neon(process.env.DATABASE_URL!);
+export async function ensureSchema(){await sql("CREATE EXTENSION IF NOT EXISTS pgcrypto");await sql("CREATE TABLE IF NOT EXISTS wonders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), question TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'curious', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");}
