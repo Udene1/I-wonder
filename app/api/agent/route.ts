@@ -32,7 +32,7 @@ export async function GET(req:Request){
       return NextResponse.json({ok:true,wonders:r});
     }
     if(op==="update"){
-      const r=await sql("UPDATE wonders SET status=COALESCE($2,status),updated_at=NOW() WHERE id=$1 RETURNING *",[p.wonder_id,p.status||null]);
+      const r=await sql("UPDATE wonders SET question=COALESCE(NULLIF($2,''),question),status=COALESCE($3,status),updated_at=NOW() WHERE id=$1 RETURNING *",[p.wonder_id,typeof p.question==="string"?p.question.trim():"",p.status||null]);
       return NextResponse.json({ok:true,wonder:r[0]});
     }
     if(op==="rabbit_holes"){
