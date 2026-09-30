@@ -1,0 +1,2 @@
+import {NextResponse} from "next/server";import {sql,ensureSchema} from "@/lib/db";
+export async function POST(req:Request,{params}:{params:Promise<{id:string}>}){await ensureSchema();const {id}=await params;const b=await req.json();if(!b.content?.trim())return NextResponse.json({error:"content is required"},{status:400});const r=await sql("INSERT INTO wonder_entries(wonder_id,content) VALUES($1,$2) RETURNING *",[id,b.content.trim()]);await sql("UPDATE wonders SET updated_at=NOW(),status='investigating' WHERE id=$1",[id]);return NextResponse.json({entry:r[0]},{status:201})}
