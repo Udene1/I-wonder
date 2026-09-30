@@ -8,7 +8,7 @@ function label(s:string){return s.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpp
 export default function Home(){
  const[w,setW]=useState<Wonder[]>([]),[q,setQ]=useState(""),[open,setOpen]=useState(false),[explore,setExplore]=useState(false);
  async function load(){const r=await fetch("/api/wonders");const d=await r.json();setW(d.wonders||[])}
- useEffect(()=>{load()},[]);
+ useEffect(()=>{load();setExplore(new URLSearchParams(window.location.search).get("explore")==="1")},[]);
  async function add(){if(!q.trim())return;await fetch("/api/wonders",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question:q})});setQ("");setOpen(false);load()}
  const learned=w.filter(x=>x.status==="learned").length;
  return <main className="shell">
