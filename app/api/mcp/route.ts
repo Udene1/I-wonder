@@ -56,6 +56,15 @@ const handler = createMcpHandler(() => {
     return { content: [{ type: "text", text: JSON.stringify(rows[0]) }] };
   });
 
+  server.registerTool("edit_wonder", {
+    description: "Correct or refine the wording of a curiosity without changing its identity, history, status, or relationships.",
+    inputSchema: z.object({ wonder_id: z.string().uuid(), question: z.string().min(1) })
+  }, async ({ wonder_id, question }) => {
+    await ensureSchema();
+    const rows = await sql("UPDATE wonders SET question=$2,updated_at=NOW() WHERE id=$1 RETURNING *", [wonder_id, question.trim()]);
+    return { content: [{ type: "text", text: JSON.stringify(rows[0] ?? null) }] };
+  });
+
   server.registerTool("update_wonder", {
     description: "Change a curiosity's status.",
     inputSchema: z.object({ wonder_id: z.string().uuid(), status: z.enum(["curious","investigating","learned","still_dont_know","forgotten"]) })
