@@ -2,6 +2,8 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import { sql, ensureSchema } from "@/lib/db";
 
+const statuses = ["curious","investigating","learned","still_dont_know","forgotten"] as const;
+
 const handler = createMcpHandler(() => {
   const server = new McpServer({ name: "i-wonder", version: "0.1.0" });
 
@@ -24,13 +26,14 @@ const handler = createMcpHandler(() => {
   });
 
   server.registerTool("get_wonder", {
-    description: "Get a curiosity and its complete append history.",
+    description: "Get a curiosity, its complete append history, and rabbit holes.",
     inputSchema: z.object({ wonder_id: z.string().uuid() })
   }, async ({ wonder_id }) => {
     await ensureSchema();
     const w = await sql("SELECT * FROM wonders WHERE id=$1", [wonder_id]);
     const entries = await sql("SELECT * FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at", [wonder_id]);
-    return { content: [{ type: "text", text: JSON.stringify({ wonder: w[0] ?? null, entries }) }] };
+    const related = await sql("SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question", [wonder_id]);
+    return { content: [{ type: "text", text: JSON.stringify({ wonder: w[0] ?? null, entries, related }) }] };
   });
 
   server.registerTool("search_wonders", {
@@ -54,14 +57,32 @@ const handler = createMcpHandler(() => {
 
   server.registerTool("update_wonder", {
     description: "Change a curiosity's status.",
-    inputSchema: z.object({ wonder_id: z.string().uuid(), status: z.enum(["curious","investigating","learned","forgotten"]) })
+    inputSchema: z.object({ wonder_id: z.string().uuid(), status: z.enum(statuses) })
   }, async ({ wonder_id, status }) => {
     await ensureSchema();
     const rows = await sql("UPDATE wonders SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *", [wonder_id, status]);
     return { content: [{ type: "text", text: JSON.stringify(rows[0] ?? null) }] };
   });
 
+  server.registerTool("link_wonders", {
+    description: "Connect two curiosities as a rabbit-hole relationship.",
+    inputSchema: z.object({ wonder_id: z.string().uuid(), related_id: z.string().uuid() })
+  }, async ({ wonder_id, related_id }) => {
+    await ensureSchema();
+    await sql("INSERT INTO wonder_links(wonder_id,related_id) VALUES($1,$2) ON CONFLICT DO NOTHING", [wonder_id, related_id]);
+    return { content: [{ type: "text", text: JSON.stringify({ linked: true, wonder_id, related_id }) }] };
+  });
+
+  server.registerTool("unlink_wonders", {
+    description: "Remove a rabbit-hole relationship between two curiosities.",
+    inputSchema: z.object({ wonder_id: z.string().uuid(), related_id: z.string().uuid() })
+  }, async ({ wonder_id, related_id }) => {
+    await ensureSchema();
+    await sql("DELETE FROM wonder_links WHERE (wonder_id=$1 AND related_id=$2) OR (wonder_id=$2 AND related_id=$1)", [wonder_id, related_id]);
+    return { content: [{ type: "text", text: JSON.stringify({ linked: false, wonder_id, related_id }) }] };
+  });
+
   return server;
 });
 
-export { handler as GET, handler as POST, handler as DELETE };
+export { handler as GET, handler as POST };
