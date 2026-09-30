@@ -1,3 +1,20 @@
-import {NextResponse} from "next/server";import {sql,ensureSchema} from "@/lib/db";
-export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){await ensureSchema();const {id}=await params;const w=await sql("SELECT * FROM wonders WHERE id=$1",[id]);if(!w[0])return NextResponse.json({error:"not found"},{status:404});const e=await sql("SELECT * FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at",[id]);const related=await sql("SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question",[id]);return NextResponse.json({wonder:w[0],entries:e,related})}
-export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){await ensureSchema();const {id}=await params;const b=await req.json();const r=await sql("UPDATE wonders SET status=COALESCE($2,status),updated_at=NOW() WHERE id=$1 RETURNING *",[id,b.status||null]);return NextResponse.json({wonder:r[0]})}
+import {NextResponse} from "next/server";
+import {sql,ensureSchema} from "@/lib/db";
+
+export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){
+  await ensureSchema();
+  const {id}=await params;
+  const w=await sql("SELECT * FROM wonders WHERE id=$1",[id]);
+  if(!w[0])return NextResponse.json({error:"not found"},{status:404});
+  const e=await sql("SELECT * FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at",[id]);
+  const related=await sql("SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question",[id]);
+  return NextResponse.json({wonder:w[0],entries:e,related});
+}
+
+export async function PATCH(req:Request,{params}:{params:Promise<{id:string}>}){
+  await ensureSchema();
+  const {id}=await params;
+  const b=await req.json();
+  const r=await sql("UPDATE wonders SET status=COALESCE($2,status),updated_at=NOW() WHERE id=$1 RETURNING *",[id,b.status||null]);
+  return NextResponse.json({wonder:r[0]});
+}
