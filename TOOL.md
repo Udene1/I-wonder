@@ -1,8 +1,26 @@
 # I Wonder — Agent Tool Guide
 
-I Wonder is Kenneth's private, single-user curiosity journal. It stores questions, durable discoveries, statuses, and explicit rabbit-hole relationships.
+I Wonder is Kenneth's **private, single-user curiosity journal**. It stores questions, durable discoveries, statuses, and explicit rabbit-hole relationships. It is personal and is **not** a team knowledge base, SaaS product, task manager, or public knowledge base.
 
 The application itself does **not** call an AI provider. An external agent such as ChatGPT can use the agent-facing API or MCP to inspect the journal, reason over it, and write durable results back.
+
+## Production access
+
+Production base URL:
+
+`https://i-wonder-ashen.vercel.app`
+
+Agent HTTP API:
+
+`https://i-wonder-ashen.vercel.app/api/agent`
+
+MCP endpoint:
+
+`https://i-wonder-ashen.vercel.app/api/mcp`
+
+The agent-facing HTTP API is intentionally **unauthenticated** because this is a private single-user application. Do not add or assume Vercel Authentication, accounts, tenants, or login are required for agent access.
+
+The production `/api/agent` endpoint has been verified to return live data from Neon/Postgres.
 
 ## Agent-facing HTTP API
 
@@ -18,24 +36,9 @@ The API accepts ordinary query parameters or one URL-encoded `payload` JSON obje
 /api/agent?op=list
 ```
 
-Returns recent curiosities:
+Returns recent curiosities.
 
-```json
-{
-  "ok": true,
-  "wonders": [
-    {
-      "id": "...",
-      "question": "...",
-      "status": "curious",
-      "created_at": "...",
-      "updated_at": "..."
-    }
-  ]
-}
-```
-
-Use this first when you need to understand what Kenneth has been wondering about.
+**Agent rule:** use this first when you need to understand Kenneth's current curiosity landscape.
 
 ### Create a curiosity
 
@@ -45,15 +48,17 @@ Use this first when you need to understand what Kenneth has been wondering about
 
 Creates a new curiosity with status `curious`.
 
+Before creating, search/list first so you do not duplicate an existing curiosity.
+
 ### Get one curiosity
 
 ```
 /api/agent?op=get&wonder_id=<UUID>
 ```
 
-Returns the curiosity, its complete discovery/ thought history, and its rabbit-hole relationships.
+Returns the curiosity, its complete discovery/thought history, and its rabbit-hole relationships.
 
-Use this before making a judgment about an existing curiosity. The question alone may not contain the context; entries are part of the durable record.
+**Important:** the question alone may not contain the context. Entries are part of the durable record. Read the existing curiosity before reasoning about or modifying it.
 
 ### Search curiosities
 
@@ -71,7 +76,7 @@ Searches question text using PostgreSQL `ILIKE`.
 
 Adds a durable entry and moves the curiosity to `investigating`.
 
-Use this when Kenneth has learned something, noticed something important, or wants a thought preserved in the thread.
+Use this when Kenneth has learned something, noticed something important, or explicitly wants a thought preserved in the thread. Do not dump transient conversation into the journal unless it is durable.
 
 ### Edit a curiosity's question
 
@@ -87,7 +92,9 @@ The same `update` operation can also change status:
 /api/agent?op=update&wonder_id=<UUID>&status=learned
 ```
 
-Both can be supplied together. Editing the question preserves the curiosity's ID, discovery history, and relationships.
+Both can be supplied together.
+
+**Critical identity rule:** if Kenneth corrects a typo, wording, grammar, or phrasing in an existing question, **edit the existing record**. Do not create a replacement curiosity. Preserve its ID, discovery history, and relationships.
 
 Valid statuses:
 
@@ -139,7 +146,7 @@ The relationship is removed in either direction.
 
 I Wonder also exposes an MCP endpoint at:
 
-`/api/mcp`
+`https://i-wonder-ashen.vercel.app/api/mcp`
 
 Available tools:
 
@@ -154,18 +161,36 @@ Available tools:
 - `link_wonders` — persist an explicit semantic relationship.
 - `unlink_wonders` — remove a relationship.
 
+Prefer MCP when the connected agent environment exposes it. Otherwise use the production HTTP API directly.
+
 ## Recommended agent workflow
 
 When asked to help with I Wonder:
 
 1. **Read before writing.** Start with `list_wonders` or `search_wonders`.
 2. **Open the relevant curiosity.** Use `get_wonder` so the question and its discovery history are both available.
-3. **Preserve identity.** If the wording of a question was simply mistyped or incomplete, use `edit_wonder` / `op=update` rather than creating a replacement curiosity.
+3. **Preserve identity.** If Kenneth says a question should be corrected, rephrased, or fixed, edit the existing record with `edit_wonder` / `op=update`. Never create a duplicate merely because the wording changed.
 4. **Record durable discoveries.** Use `append_to_wonder` for information that should remain part of the curiosity's thread.
-5. **Use rabbit holes deliberately.** Call `find_rabbit_holes`, reason over the candidates using the actual question and entries, and only then call `link_wonders`.
-6. **Explain relationships.** When creating a link, provide a short `reason` and a `confidence` when appropriate.
+5. **Use rabbit holes deliberately.** Call `find_rabbit_holes`, reason over candidates using the actual question and entries, and only then call `link_wonders`.
+6. **Explain relationships.** When creating a link, provide a short concrete `reason` and a `confidence` when appropriate.
 7. **Do not manufacture structure.** Shared vocabulary is not sufficient evidence of a relationship.
-8. **Keep the journal personal.** I Wonder is a private curiosity garden, not a team knowledge base or generic task-management system.
+8. **Keep the journal personal.** Do not turn it into a generic productivity system or invent organizational structure Kenneth did not ask for.
+9. **Verify writes.** After an important create/update/link operation, read the record again and confirm the persisted state.
+10. **Do not claim success from a tool call alone.** A write should be considered complete only when the API response succeeds and, for important changes, a follow-up read confirms the stored value.
+
+## Current live example
+
+As of 2026-09-30, the journal contains this curiosity:
+
+ID:
+`4171f38f-1112-421f-8ff2-c31e1d617180`
+
+Question:
+> What are we doing on earth. And if we will die, why do we try to become whatever aside trying to eat.
+
+Status: `curious`
+
+This is an example of the identity-preservation rule: Kenneth corrected the wording from “What are doing on earth” to “What are we doing on earth,” and the existing record was edited rather than replaced.
 
 ## Payload form
 
@@ -175,7 +200,7 @@ For agents that prefer one encoded JSON argument, all HTTP operations also accep
 /api/agent?payload=<URL-encoded JSON>
 ```
 
-Example payload:
+Example:
 
 ```json
 {
@@ -191,4 +216,4 @@ Example payload:
 - `wonder_entries` — chronological discoveries and thoughts belonging to a curiosity.
 - `wonder_links` — explicit relationships between curiosities, including type, reason, confidence, and source.
 
-The question is the identity-bearing object. Correcting its wording should normally be an edit, not a new record.
+The **question is the identity-bearing object**. Correcting its wording should normally be an edit, not a new record.
