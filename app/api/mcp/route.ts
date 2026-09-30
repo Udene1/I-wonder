@@ -1,4 +1,5 @@
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "mcp-handler";
+import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { sql, ensureSchema } from "@/lib/db";
 
