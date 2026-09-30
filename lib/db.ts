@@ -1,3 +1,16 @@
 import { neon } from "@neondatabase/serverless";
+
 export const sql = neon(process.env.DATABASE_URL!);
-export async function ensureSchema(){await sql("CREATE EXTENSION IF NOT EXISTS pgcrypto");await sql("CREATE TABLE IF NOT EXISTS wonders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), question TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'curious', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");await sql("CREATE TABLE IF NOT EXISTS wonder_entries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), wonder_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");await sql("CREATE INDEX IF NOT EXISTS wonders_updated_idx ON wonders(updated_at DESC)");await sql("CREATE INDEX IF NOT EXISTS entries_wonder_idx ON wonder_entries(wonder_id, created_at ASC)");await sql("CREATE TABLE IF NOT EXISTS wonder_links (wonder_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, related_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(wonder_id,related_id), CHECK(wonder_id <> related_id))");}
+
+export async function ensureSchema() {
+  await sql("CREATE EXTENSION IF NOT EXISTS pgcrypto");
+  await sql("CREATE TABLE IF NOT EXISTS wonders (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), question TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'curious', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await sql("CREATE TABLE IF NOT EXISTS wonder_entries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), wonder_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await sql("CREATE INDEX IF NOT EXISTS wonders_updated_idx ON wonders(updated_at DESC)");
+  await sql("CREATE INDEX IF NOT EXISTS entries_wonder_idx ON wonder_entries(wonder_id, created_at ASC)");
+  await sql("CREATE TABLE IF NOT EXISTS wonder_links (wonder_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, related_id UUID NOT NULL REFERENCES wonders(id) ON DELETE CASCADE, relationship_type TEXT NOT NULL DEFAULT 'related', reason TEXT, confidence NUMERIC(4,3), source TEXT NOT NULL DEFAULT 'manual', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(wonder_id,related_id), CHECK(wonder_id <> related_id), CHECK(confidence IS NULL OR (confidence >= 0 AND confidence <= 1)))");
+  await sql("ALTER TABLE wonder_links ADD COLUMN IF NOT EXISTS relationship_type TEXT NOT NULL DEFAULT 'related'");
+  await sql("ALTER TABLE wonder_links ADD COLUMN IF NOT EXISTS reason TEXT");
+  await sql("ALTER TABLE wonder_links ADD COLUMN IF NOT EXISTS confidence NUMERIC(4,3)");
+  await sql("ALTER TABLE wonder_links ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual'");
+}
