@@ -1,8 +1,6 @@
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
-import * as z from "zod/v4";
+import { z } from "zod";
 import { sql, ensureSchema } from "@/lib/db";
-
-const statuses = ["curious","investigating","learned","still_dont_know","forgotten"] as const;
 
 const handler = createMcpHandler(() => {
   const server = new McpServer({ name: "i-wonder", version: "0.1.0" });
@@ -57,7 +55,7 @@ const handler = createMcpHandler(() => {
 
   server.registerTool("update_wonder", {
     description: "Change a curiosity's status.",
-    inputSchema: z.object({ wonder_id: z.string().uuid(), status: z.enum(statuses) })
+    inputSchema: z.object({ wonder_id: z.string().uuid(), status: z.enum(["curious","investigating","learned","still_dont_know","forgotten"]) })
   }, async ({ wonder_id, status }) => {
     await ensureSchema();
     const rows = await sql("UPDATE wonders SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *", [wonder_id, status]);
