@@ -16,49 +16,49 @@ jobs:
           node <<'NODE'
           const url = process.env.MCP_URL;
 
-          async function rpc(id, method, params, sessionId) {
-            const headers = {
-              "content-type": "application/json",
-              "accept": "application/json, text/event-stream",
-            };
-            if (sessionId) headers["mcp-session-id"] = sessionId;
-
+          async function request(message) {
             const res = await fetch(url, {
               method: "POST",
-              headers,
-              body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+              headers: {
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+              },
+              body: JSON.stringify(message),
             });
-
             const body = await res.text();
-            console.log("\n--- " + method + " ---");
+            console.log("\n--- " + message.method + " ---");
             console.log("HTTP " + res.status);
             console.log("content-type:", res.headers.get("content-type"));
             console.log("mcp-session-id:", res.headers.get("mcp-session-id"));
             console.log(body);
-
-            if (!res.ok) throw new Error(method + " failed with HTTP " + res.status);
-
-            let parsed = null;
-            try { parsed = JSON.parse(body); } catch {}
-            return {
-              status: res.status,
-              headers: res.headers,
-              body,
-              json: parsed,
-              sessionId: res.headers.get("mcp-session-id") || sessionId || null,
-            };
+            if (!res.ok) throw new Error(message.method + " failed with HTTP " + res.status);
+            return { res, body };
           }
 
-          const init = await rpc(1, "initialize", {
-            protocolVersion: "2025-06-18",
-            capabilities: {},
-            clientInfo: { name: "i-wonder-ci", version: "1.0.0" },
+          await request({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2025-06-18",
+              capabilities: {},
+              clientInfo: { name: "i-wonder-ci", version: "1.0.0" },
+            },
           });
 
-          const sessionId = init.sessionId;
-          const listed = await rpc(2, "tools/list", {}, sessionId);
+          await request({
+            jsonrpc: "2.0",
+            method: "notifications/initialized",
+            params: {},
+          });
 
-          const text = listed.body;
+          const listed = await request({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/list",
+            params: {},
+          });
+
           const expected = [
             "list_wonders",
             "create_wonder",
@@ -72,7 +72,7 @@ jobs:
             "unlink_wonders",
           ];
 
-          const missing = expected.filter(name => !text.includes(name));
+          const missing = expected.filter(name => !listed.body.includes(name));
           if (missing.length) {
             throw new Error("Expected MCP tools missing from tools/list response: " + missing.join(", "));
           }
