@@ -1,0 +1,81 @@
+name: MCP smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe I Wonder MCP
+        env:
+          MCP_URL: https://i-wonder-ashen.vercel.app/api/mcp
+        run: |
+          node <<'NODE'
+          const url = process.env.MCP_URL;
+
+          async function rpc(id, method, params, sessionId) {
+            const headers = {
+              "content-type": "application/json",
+              "accept": "application/json, text/event-stream",
+            };
+            if (sessionId) headers["mcp-session-id"] = sessionId;
+
+            const res = await fetch(url, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+            });
+
+            const body = await res.text();
+            console.log("\n--- " + method + " ---");
+            console.log("HTTP " + res.status);
+            console.log("content-type:", res.headers.get("content-type"));
+            console.log("mcp-session-id:", res.headers.get("mcp-session-id"));
+            console.log(body);
+
+            if (!res.ok) throw new Error(method + " failed with HTTP " + res.status);
+
+            let parsed = null;
+            try { parsed = JSON.parse(body); } catch {}
+            return {
+              status: res.status,
+              headers: res.headers,
+              body,
+              json: parsed,
+              sessionId: res.headers.get("mcp-session-id") || sessionId || null,
+            };
+          }
+
+          const init = await rpc(1, "initialize", {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "i-wonder-ci", version: "1.0.0" },
+          });
+
+          const sessionId = init.sessionId;
+          const listed = await rpc(2, "tools/list", {}, sessionId);
+
+          const text = listed.body;
+          const expected = [
+            "list_wonders",
+            "create_wonder",
+            "get_wonder",
+            "search_wonders",
+            "append_to_wonder",
+            "edit_wonder",
+            "update_wonder",
+            "find_rabbit_holes",
+            "link_wonders",
+            "unlink_wonders",
+          ];
+
+          const missing = expected.filter(name => !text.includes(name));
+          if (missing.length) {
+            throw new Error("Expected MCP tools missing from tools/list response: " + missing.join(", "));
+          }
+
+          console.log("\nMCP SMOKE TEST PASSED: all 10 expected tools were returned.");
+          NODE
