@@ -1,0 +1,19 @@
+name: I Wonder record check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  records:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read live curiosity records through agent API
+        run: |
+          node <<'NODE'
+          const res = await fetch("https://i-wonder-ashen.vercel.app/api/agent?op=list");
+          const body = await res.text();
+          console.log(body);
+          if (!res.ok) throw new Error("agent list failed: HTTP " + res.status);
+          NODE
