@@ -9,54 +9,58 @@ jobs:
   mcp:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe I Wonder MCP
+      - name: Probe I Wonder MCP (modern 2026 protocol)
         env:
           MCP_URL: https://i-wonder-ashen.vercel.app/api/mcp
         run: |
           node <<'NODE'
           const url = process.env.MCP_URL;
 
-          async function request(message) {
+          async function request(method, id, params = {}) {
+            const body = {
+              jsonrpc: "2.0",
+              ...(id !== undefined ? { id } : {}),
+              method,
+              params,
+            };
+
+            const headers = {
+              "content-type": "application/json",
+              "accept": "application/json, text/event-stream",
+              "MCP-Protocol-Version": "2026-07-28",
+              "Mcp-Method": method,
+            };
+
             const res = await fetch(url, {
               method: "POST",
-              headers: {
-                "content-type": "application/json",
-                "accept": "application/json, text/event-stream",
-              },
-              body: JSON.stringify(message),
+              headers,
+              body: JSON.stringify(body),
             });
-            const body = await res.text();
-            console.log("\n--- " + message.method + " ---");
+
+            const text = await res.text();
+            console.log("\n--- " + method + " ---");
             console.log("HTTP " + res.status);
             console.log("content-type:", res.headers.get("content-type"));
-            console.log("mcp-session-id:", res.headers.get("mcp-session-id"));
-            console.log(body);
-            if (!res.ok) throw new Error(message.method + " failed with HTTP " + res.status);
-            return { res, body };
+            console.log(text);
+
+            if (!res.ok) throw new Error(method + " failed with HTTP " + res.status);
+            return text;
           }
 
-          await request({
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-              protocolVersion: "2025-06-18",
-              capabilities: {},
-              clientInfo: { name: "i-wonder-ci", version: "1.0.0" },
+          await request("server/discover", 1, {
+            _meta: {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": { name: "i-wonder-ci", version: "1.0.0" },
+              "io.modelcontextprotocol/clientCapabilities": {},
             },
           });
 
-          await request({
-            jsonrpc: "2.0",
-            method: "notifications/initialized",
-            params: {},
-          });
-
-          const listed = await request({
-            jsonrpc: "2.0",
-            id: 2,
-            method: "tools/list",
-            params: {},
+          const listed = await request("tools/list", 2, {
+            _meta: {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": { name: "i-wonder-ci", version: "1.0.0" },
+              "io.modelcontextprotocol/clientCapabilities": {},
+            },
           });
 
           const expected = [
@@ -72,10 +76,10 @@ jobs:
             "unlink_wonders",
           ];
 
-          const missing = expected.filter(name => !listed.body.includes(name));
+          const missing = expected.filter(name => !listed.includes(name));
           if (missing.length) {
             throw new Error("Expected MCP tools missing from tools/list response: " + missing.join(", "));
           }
 
-          console.log("\nMCP SMOKE TEST PASSED: all 10 expected tools were returned.");
+          console.log("\nMCP MODERN SMOKE TEST PASSED: all 10 expected tools were returned.");
           NODE
