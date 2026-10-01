@@ -1,13 +1,10 @@
 import { createMcpHandler } from "mcp-handler";
-import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { sql, ensureSchema } from "@/lib/db";
 
 const relationTypes = ["related","follows_from","helps_explain","branch_of","contrasts_with"] as const;
 
-const handler = createMcpHandler(() => {
-  const server = new McpServer({ name: "i-wonder", version: "0.1.0" });
-
+const handler = createMcpHandler((server) => {
   server.registerTool("list_wonders", {
     description: "List recent curiosities.",
     inputSchema: z.object({ limit: z.number().int().min(1).max(100).optional() })
@@ -33,7 +30,7 @@ const handler = createMcpHandler(() => {
     await ensureSchema();
     const w = await sql("SELECT * FROM wonders WHERE id=$1", [wonder_id]);
     const entries = await sql("SELECT * FROM wonder_entries WHERE wonder_id=$1 ORDER BY created_at", [wonder_id]);
-    const related = await sql("SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question", [wonder_id]);
+    const related = await sql("SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.related_id WHERE l.wonder_id=$1 UNION SELECT w.id,w.question,w.status,l.relationship_type,l.reason,l.confidence,l.source FROM wonder_links l JOIN wonders w ON w.id=l.wonder_id WHERE l.related_id=$1 ORDER BY question",[wonder_id]);
     return { content: [{ type: "text", text: JSON.stringify({ wonder: w[0] ?? null, entries, related }) }] };
   });
 
@@ -112,8 +109,6 @@ const handler = createMcpHandler(() => {
     await sql("DELETE FROM wonder_links WHERE (wonder_id=$1 AND related_id=$2) OR (wonder_id=$2 AND related_id=$1)", [wonder_id, related_id]);
     return { content: [{ type: "text", text: JSON.stringify({ linked: false, wonder_id, related_id }) }] };
   });
-
-  return server;
 });
 
 export { handler as GET, handler as POST };
